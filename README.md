@@ -3,6 +3,8 @@ An AI system that analyzes swimming technique using computer vision to generates
 
 **Built with:** MediaPipe · OpenCV · Google Gemini AI · Python · Streamlit
 
-**Status:** Phase 1 — Building the Computer Vision Pipeline
+**Status:** Phase 1 — Building the Computer Vision Pipeline 
+
+**Current task:** Learning what MediaPipe is
 
 **Started** [July , 2026]
