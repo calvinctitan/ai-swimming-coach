@@ -5,6 +5,6 @@ An AI system that analyzes swimming technique using computer vision to generates
 
 **Status:** Phase 1 — Building the Computer Vision Pipeline 
 
-**Current task:** Learning what MediaPipe is
+**Current task:** Learning basics: Python, Google Collab, MediaPipe
 
 **Started** [July , 2026]
