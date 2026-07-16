@@ -5,6 +5,6 @@ An AI system that analyzes swimming technique using computer vision to generates
 
 **Status:** Phase 1 — Building the Computer Vision Pipeline 
 
-**Current task:** Learning basics: Python, Google Collab, MediaPipe
+**Current task:** Learning basics: Python, Google Collab, MediaPipe + Agentic cloud Alibaba meeting
 
 **Started** [July , 2026]
