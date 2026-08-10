@@ -5,6 +5,6 @@ An AI system that analyzes swimming technique using computer vision to generates
 
 **Status:** Phase 1 — Building the Computer Vision Pipeline 
 
-**Current task:** Learning basics: Python
+**Current task:** Learning basics: Building a Pose extractor
 
 **Started** [July , 2026]
