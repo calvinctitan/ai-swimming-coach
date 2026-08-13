@@ -6,6 +6,9 @@ def load_video(filepath):
 
   if cap.isOpened():         # checks if the file is opened or not
     print("Video Loaded")
+    
+    frame_count = cap.get(cv2.CAP_PROP_FRAME_COUNT) #countes the number of Frames
+    print("Total frames:", frame_count)
 
   else:
     print("Video Not Loaded")
