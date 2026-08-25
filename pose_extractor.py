@@ -118,4 +118,48 @@ else:
 #shows the left elbow coordinates. left elbow is always number 13 in Mediapipe
 
 
+import json
 
+def save_to_json(data, filename):
+    with open(filename, "w") as f:
+        json.dump(data, f, indent=2)
+    print("Saved to", filename)
+
+video = load_video("Swimtestone (1).mp4")
+
+all_frames_data = {}
+frame_number = 0
+
+while True:
+  ret, frame = video.read()
+  if not ret:
+    break
+
+  if frame_number %10 ==0:  
+    joints = extracting_joints(frame)
+
+    if joints is not None:
+      frame_key =  f"frame_{frame_number:03d}"
+
+      joints["left_elbow_angle_degrees"] = calculate_angle(
+        joints["left_shoulder"], joints["left_elbow"], joints["left_wrist"])
+
+      joints["right_elbow_angle_degrees"] = calculate_angle(
+        joints["right_shoulder"], joints["right_elbow"], joints["right_wrist"])
+
+      joints["left_knee_angle_degrees"] = calculate_angle(
+        joints["left_hip"], joints["left_knee"], joints["left_ankle"])
+
+      joints["right_knee_angle_degrees"] = calculate_angle(
+         joints["right_hip"], joints["right_knee"], joints["right_ankle"])
+
+    
+    all_frames_data[frame_number] = joints
+
+  frame_number += 1
+
+print ("Processed", len(all_frames_data),"frames with detected joints" )
+save_to_json(all_frames_data, "joint_angles.json")
+
+  
+#put everything into one single file 
