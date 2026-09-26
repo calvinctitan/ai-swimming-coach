@@ -14,21 +14,6 @@ def load_video(filepath):
     print("Video Not Loaded")
   return cap
 
-# Initial load of the image and read its single frame
-video_capture_object = load_video( "IMG_7411.JPG")
-ret,frame = video_capture_object.read()  #cap.read will capture the next frame, telling you wether it worked and the image iteslef
-if ret:
-  print("Frame 1 read")
-  print("Frame Shape:",frame.shape)
-
-else:
-  print("Could not read the frame")
-
-
-
-!wget -q https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/latest/pose_landmarker_full.task #download the mediapipe
-!pip install mediapipe
-
 import mediapipe as mp
 
 BaseOptions = mp.tasks.BaseOptions
@@ -41,22 +26,7 @@ options = PoseLandmarkerOptions(
     base_options=BaseOptions(model_asset_path="pose_landmarker_full.task"),
     running_mode=VisionRunningMode.IMAGE)
 landmarker = PoseLandmarker.create_from_options(options)
-# Set up the detector using the model we just downloaded
-
-
-# This section was problematic for images. Using the frame from the initial load.
-# The 'target_frame' loop is only necessary for processing multiple frames of a video.
-# Since IMG_7411.JPG is a single image, we use the 'frame' already read.
-
-print("Actually on frame:", video_capture_object.get(cv2.CAP_PROP_POS_FRAMES))
-
-if ret: # Using the 'ret' and 'frame' from the initial successful read
-    from google.colab.patches import cv2_imshow
-    cv2_imshow(frame)
-else:
-    print("No frame to display as initial read failed.")
-
-
+# Set up the detector using the model file pose_landmarker_full.task (download link in README)
 
 
 LANDMARK_NAMES = [
@@ -70,7 +40,6 @@ LANDMARK_NAMES = [
     "left_ankle", "right_ankle", "left_heel", "right_heel",
     "left_foot_index", "right_foot_index"
 ]
-
 
 
 
@@ -91,31 +60,14 @@ def extracting_joints(frame):
     return None
 
   joints = {}
+  height, width, _ = frame.shape   # size of the frame in pixels
 
 
   #enumerate gives both the position number and the body part while looping. Match correct number with name
   for i, landmark in enumerate(result.pose_landmarks[0]):
     name = LANDMARK_NAMES[i]
-    joints[name]={"x": landmark.x, "y": landmark.y}
+    joints[name]={"x": landmark.x * width, "y": landmark.y * height}   # turn MediaPipe's 0-1 values into pixels so angles aren't stretched
   return joints
-
-# Call extracting_joints with the valid 'frame' if it was successfully loaded
-joints = None
-if ret:
-    joints = extracting_joints(frame)
-
-
-if joints:
-   for name, coords in joints.items():
-    print(name,coords)
-
-else:
-  print("No joints/pose landmarks found")
-
-
-
-
-#shows the left elbow coordinates. left elbow is always number 13 in Mediapipe
 
 
 import json
@@ -125,7 +77,26 @@ def save_to_json(data, filename):
         json.dump(data, f, indent=2)
     print("Saved to", filename)
 
-video = load_video("Swimtestone (1).mp4")
+#Angle calculator
+
+import numpy as np # introduce arrays in this python
+#as np introduces it as a shortcut
+def calculate_angle(A,B,C):
+
+  a = np.array([A["x"], A["y"]])
+  b = np.array([B["x"], B["y"]])   # elbow — the middle point
+  c = np.array([C["x"], C["y"]])
+
+  ba = a - b   # arrow from elbow to shoulder
+  bc = c - b   # arrow from elbow to wrist
+  cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))
+  angle = np.degrees(np.arccos(cosine_angle))  #mediapipe angle calculation formula
+
+  return angle
+
+
+video_file = "Jumping.MOV"   # can be changed with different files
+video = load_video(video_file)
 
 all_frames_data = {}
 frame_number = 0
@@ -153,51 +124,25 @@ while True:
       joints["right_knee_angle_degrees"] = calculate_angle(
          joints["right_hip"], joints["right_knee"], joints["right_ankle"])
 
-    
-    all_frames_data[frame_number] = joints
+      all_frames_data[frame_key] = joints   # only save frames where a person was found
 
   frame_number += 1
 
 print ("Processed", len(all_frames_data),"frames with detected joints" )
 save_to_json(all_frames_data, "joint_angles.json")
 
-  
-#put everything into one single file 
 
 
-
-
-!pip install --upgrade mediapipe opencv-python-headless
-!wget -q -nc https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/latest/pose_landmarker_full.task
-
-import cv2
-import mediapipe as mp
-
-# Configure the new Mediapipe PoseLandmarker API
-BaseOptions = mp.tasks.BaseOptions
-PoseLandmarker = mp.tasks.vision.PoseLandmarker
-PoseLandmarkerOptions = mp.tasks.vision.PoseLandmarkerOptions
-VisionRunningMode = mp.tasks.vision.RunningMode
-
-options = PoseLandmarkerOptions(
-    base_options=BaseOptions(model_asset_path="pose_landmarker_full.task"),
-    running_mode=VisionRunningMode.IMAGE)
-landmarker = PoseLandmarker.create_from_options(options)
-
-
+# Pairs of joint numbers to connect with lines (MediaPipe's official list)
 POSE_CONNECTIONS = [
-    (0, 1), (0, 4), (1, 2), (2, 3), (4, 5), (5, 6),
-    (7, 8), (9, 10), (11, 12), (11, 13), (13, 15), (15, 17), (15, 19), (15, 21),
-    (12, 14), (14, 16), (16, 18), (16, 20), (16, 22),
-    (23, 24), (23, 25), (25, 27), (27, 29), (29, 31),
-    (24, 26), (26, 28), (28, 30), (30, 32)
+    (0, 1), (0, 4), (1, 2), (2, 3), (4, 5), (5, 6), (3, 7), (6, 8),
+    (9, 10), (11, 12), (11, 13), (13, 15), (15, 17), (15, 19), (15, 21), (17, 19),
+    (12, 14), (14, 16), (16, 18), (16, 20), (16, 22), (18, 20),
+    (11, 23), (12, 24),   # shoulders to hips
+    (23, 24), (23, 25), (25, 27), (27, 29), (29, 31), (27, 31),
+    (24, 26), (26, 28), (28, 30), (30, 32), (28, 32)
 ]
 
-
-
-def load_video(filepath):
-    cap = cv2.VideoCapture(filepath)
-    return cap
 
 def extract_joints(frame):
     if frame is None or frame.size == 0:
@@ -235,7 +180,7 @@ def draw_skeleton_lines(frame, landmarks, connections):
 
 
 
-cap = load_video("Jumping.MOV")   # can be changed with different files
+cap = load_video(video_file)
 
 # Get the video's own width, height, and speed, so our output video matches it
 width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
