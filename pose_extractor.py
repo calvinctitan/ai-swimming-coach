@@ -1,64 +1,29 @@
-import cv2   # this line load openCV for the machine to use
+"""
+pose_extractor.py — Phase 1 of the AI Swimming Coach.
 
-def load_video(filepath):
-  cap = cv2.VideoCapture(filepath)  # Opens up the video file and hands you back the control
+Takes a swimming video, finds the swimmer's 33 body joints on every frame with
+MediaPipe, calculates joint angles, and saves two files:
+    joint_angles.json    -> joint positions + angles for every frame
+    skeleton_output.mp4  -> the video with a skeleton drawn on top
 
+Run it:
+    python pose_extractor.py my_swim_video.mp4
+"""
 
-  if cap.isOpened():         # checks if the file is opened or not
-    print("Video Loaded")
+import json
+import os
+import sys
+import urllib.request
 
-    frame_count = cap.get(cv2.CAP_PROP_FRAME_COUNT) #counts how many frames there are.
-    print("Total frames:", frame_count)
+import cv2               # OpenCV: opens videos and draws on frames
+import mediapipe as mp   # Google's AI that finds body joints
+import numpy as np       # does the angle math
 
-  else:
-    print("Video Not Loaded")
-  return cap
+MODEL_URL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/latest/pose_landmarker_full.task"
+MODEL_PATH = "pose_landmarker_full.task"
 
-# Initial load of the image and read its single frame
-video_capture_object = load_video( "IMG_7411.JPG")
-ret,frame = video_capture_object.read()  #cap.read will capture the next frame, telling you wether it worked and the image iteslef
-if ret:
-  print("Frame 1 read")
-  print("Frame Shape:",frame.shape)
-
-else:
-  print("Could not read the frame")
-
-
-
-!wget -q https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/latest/pose_landmarker_full.task #download the mediapipe
-!pip install mediapipe
-
-import mediapipe as mp
-
-BaseOptions = mp.tasks.BaseOptions
-PoseLandmarker = mp.tasks.vision.PoseLandmarker
-PoseLandmarkerOptions = mp.tasks.vision.PoseLandmarkerOptions
-VisionRunningMode = mp.tasks.vision.RunningMode
-
-
-options = PoseLandmarkerOptions(
-    base_options=BaseOptions(model_asset_path="pose_landmarker_full.task"),
-    running_mode=VisionRunningMode.IMAGE)
-landmarker = PoseLandmarker.create_from_options(options)
-# Set up the detector using the model we just downloaded
-
-
-# This section was problematic for images. Using the frame from the initial load.
-# The 'target_frame' loop is only necessary for processing multiple frames of a video.
-# Since IMG_7411.JPG is a single image, we use the 'frame' already read.
-
-print("Actually on frame:", video_capture_object.get(cv2.CAP_PROP_POS_FRAMES))
-
-if ret: # Using the 'ret' and 'frame' from the initial successful read
-    from google.colab.patches import cv2_imshow
-    cv2_imshow(frame)
-else:
-    print("No frame to display as initial read failed.")
-
-
-
-
+# MediaPipe always returns the 33 joints in this order, so position i in the list = joint number i.
+# "left" and "right" mean the swimmer's own left and right.
 LANDMARK_NAMES = [
     "nose", "left_eye_inner", "left_eye", "left_eye_outer",
     "right_eye_inner", "right_eye", "right_eye_outer",
@@ -71,194 +36,182 @@ LANDMARK_NAMES = [
     "left_foot_index", "right_foot_index"
 ]
 
+# Pairs of joint numbers to connect with a line (MediaPipe's official skeleton)
+POSE_CONNECTIONS = [
+    # face
+    (0, 1), (1, 2), (2, 3), (3, 7), (0, 4), (4, 5), (5, 6), (6, 8), (9, 10),
+    # torso
+    (11, 12), (11, 23), (12, 24), (23, 24),
+    # left arm and hand
+    (11, 13), (13, 15), (15, 17), (15, 19), (15, 21), (17, 19),
+    # right arm and hand
+    (12, 14), (14, 16), (16, 18), (16, 20), (16, 22), (18, 20),
+    # left leg and foot
+    (23, 25), (25, 27), (27, 29), (27, 31), (29, 31),
+    # right leg and foot
+    (24, 26), (26, 28), (28, 30), (28, 32), (30, 32),
+]
+
+# Each angle is measured at the middle joint: (first joint, middle joint, last joint)
+ANGLES_TO_MEASURE = {
+    "left_elbow_angle_degrees": ("left_shoulder", "left_elbow", "left_wrist"),
+    "right_elbow_angle_degrees": ("right_shoulder", "right_elbow", "right_wrist"),
+    "left_knee_angle_degrees": ("left_hip", "left_knee", "left_ankle"),
+    "right_knee_angle_degrees": ("right_hip", "right_knee", "right_ankle"),
+}
 
 
-
-def extracting_joints(frame):
-  # Ensure frame is not empty before processing
-  if frame is None or frame.size == 0:
-      print("Error: Empty frame passed to extracting_joints.")
-      return None
-
-  rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-  mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
-
-#change colors for Mediapipe
-  result = landmarker.detect(mp_image)
-#run the detection
-
-  if not result.pose_landmarks:
-    return None
-
-  joints = {}
+def download_model():
+    # Only downloads the first time; after that the file is already there
+    if not os.path.exists(MODEL_PATH):
+        print("Downloading MediaPipe pose model...")
+        urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
 
 
-  #enumerate gives both the position number and the body part while looping. Match correct number with name
-  for i, landmark in enumerate(result.pose_landmarks[0]):
-    name = LANDMARK_NAMES[i]
-    joints[name]={"x": landmark.x, "y": landmark.y}
-  return joints
-
-# Call extracting_joints with the valid 'frame' if it was successfully loaded
-joints = None
-if ret:
-    joints = extracting_joints(frame)
+def create_landmarker():
+    options = mp.tasks.vision.PoseLandmarkerOptions(
+        base_options=mp.tasks.BaseOptions(model_asset_path=MODEL_PATH),
+        running_mode=mp.tasks.vision.RunningMode.VIDEO)  # VIDEO mode follows the swimmer from frame to frame
+    return mp.tasks.vision.PoseLandmarker.create_from_options(options)
 
 
-if joints:
-   for name, coords in joints.items():
-    print(name,coords)
+def load_video(filepath):
+    cap = cv2.VideoCapture(filepath)  # Opens up the video file and hands you back the control
+    if not cap.isOpened():
+        raise FileNotFoundError(f"Could not open video: {filepath}")
 
-else:
-  print("No joints/pose landmarks found")
-
-
-
-
-#shows the left elbow coordinates. left elbow is always number 13 in Mediapipe
+    print("Video Loaded")
+    print("Total frames:", int(cap.get(cv2.CAP_PROP_FRAME_COUNT)))
+    return cap
 
 
-import json
+def extract_joints(landmarker, frame, timestamp_ms):
+    # Runs MediaPipe on one frame. Returns the 33 joints, or None if no person was found.
+    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)  # OpenCV stores colors as BGR, MediaPipe wants RGB
+    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
+
+    result = landmarker.detect_for_video(mp_image, timestamp_ms)
+    if not result.pose_landmarks:
+        return None
+    return result.pose_landmarks[0]
+
+
+def landmarks_to_dict(landmarks):
+    # enumerate gives both the position number and the joint while looping. Match correct number with name
+    joints = {}
+    for i, landmark in enumerate(landmarks):
+        joints[LANDMARK_NAMES[i]] = {
+            "x": round(landmark.x, 4),
+            "y": round(landmark.y, 4),
+            # How sure MediaPipe is that the joint is visible (0-1). Low = hidden, e.g. the far arm underwater
+            "visibility": round(landmark.visibility, 3),
+        }
+    return joints
+
+
+def to_pixels(joint, width, height):
+    # MediaPipe's x and y are fractions (0-1) of the frame's width and height.
+    # Converting to pixels first stops tall or wide videos from stretching the angles.
+    return (joint["x"] * width, joint["y"] * height)
+
+
+def calculate_angle(a, b, c):
+    # Angle at point b, in degrees, made by points a-b-c (each an (x, y) in pixels).
+    # Straight line = 180 degrees, smaller = more bent.
+    ba = np.array(a) - np.array(b)  # vector from the middle joint to a
+    bc = np.array(c) - np.array(b)  # vector from the middle joint to c
+
+    lengths = np.linalg.norm(ba) * np.linalg.norm(bc)
+    if lengths == 0:  # two joints are on top of each other, so there is no angle
+        return None
+
+    cosine = np.dot(ba, bc) / lengths
+    angle = np.degrees(np.arccos(np.clip(cosine, -1.0, 1.0)))  # clip guards against tiny rounding errors
+    return round(float(angle), 1)
+
+
+def add_angles(joints, width, height):
+    for angle_name, (a, b, c) in ANGLES_TO_MEASURE.items():
+        joints[angle_name] = calculate_angle(
+            to_pixels(joints[a], width, height),
+            to_pixels(joints[b], width, height),
+            to_pixels(joints[c], width, height))
+    return joints
+
 
 def save_to_json(data, filename):
     with open(filename, "w") as f:
         json.dump(data, f, indent=2)
     print("Saved to", filename)
 
-video = load_video("Swimtestone (1).mp4")
 
-all_frames_data = {}
-frame_number = 0
+def draw_skeleton_lines(frame, landmarks, connections):
+    height, width, _ = frame.shape
+    for start_idx, end_idx in connections:
+        start = landmarks[start_idx]
+        end = landmarks[end_idx]
+        start_point = (int(start.x * width), int(start.y * height))
+        end_point = (int(end.x * width), int(end.y * height))
+        cv2.line(frame, start_point, end_point, (255, 255, 255), 2)   # white line
+    return frame
 
-while True:
-  ret, frame = video.read()
-  if not ret:
-    break
-
-  if frame_number %10 ==0:  
-    joints = extracting_joints(frame)
-
-    if joints is not None:
-      frame_key =  f"frame_{frame_number:03d}"
-
-      joints["left_elbow_angle_degrees"] = calculate_angle(
-        joints["left_shoulder"], joints["left_elbow"], joints["left_wrist"])
-
-      joints["right_elbow_angle_degrees"] = calculate_angle(
-        joints["right_shoulder"], joints["right_elbow"], joints["right_wrist"])
-
-      joints["left_knee_angle_degrees"] = calculate_angle(
-        joints["left_hip"], joints["left_knee"], joints["left_ankle"])
-
-      joints["right_knee_angle_degrees"] = calculate_angle(
-         joints["right_hip"], joints["right_knee"], joints["right_ankle"])
-
-    
-    all_frames_data[frame_number] = joints
-
-  frame_number += 1
-
-print ("Processed", len(all_frames_data),"frames with detected joints" )
-save_to_json(all_frames_data, "joint_angles.json")
-
-  
-#put everything into one single file 
-
-
-
-
-!pip install --upgrade mediapipe opencv-python-headless
-!wget -q -nc https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/latest/pose_landmarker_full.task
-
-import cv2
-import mediapipe as mp
-
-# Configure the new Mediapipe PoseLandmarker API
-BaseOptions = mp.tasks.BaseOptions
-PoseLandmarker = mp.tasks.vision.PoseLandmarker
-PoseLandmarkerOptions = mp.tasks.vision.PoseLandmarkerOptions
-VisionRunningMode = mp.tasks.vision.RunningMode
-
-options = PoseLandmarkerOptions(
-    base_options=BaseOptions(model_asset_path="pose_landmarker_full.task"),
-    running_mode=VisionRunningMode.IMAGE)
-landmarker = PoseLandmarker.create_from_options(options)
-
-
-POSE_CONNECTIONS = [
-    (0, 1), (0, 4), (1, 2), (2, 3), (4, 5), (5, 6),
-    (7, 8), (9, 10), (11, 12), (11, 13), (13, 15), (15, 17), (15, 19), (15, 21),
-    (12, 14), (14, 16), (16, 18), (16, 20), (16, 22),
-    (23, 24), (23, 25), (25, 27), (27, 29), (29, 31),
-    (24, 26), (26, 28), (28, 30), (30, 32)
-]
-
-
-
-def load_video(filepath):
-    cap = cv2.VideoCapture(filepath)
-    return cap
-
-def extract_joints(frame):
-    if frame is None or frame.size == 0:
-        print("Error: Empty frame passed to extract_joints.")
-        return None
-
-    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
-    
-    result = landmarker.detect(mp_image)
-
-    if not result.pose_landmarks:
-        return None
-    return result.pose_landmarks[0] 
 
 def draw_skeleton_dots(frame, landmarks):
     height, width, _ = frame.shape
     for landmark in landmarks:
         x = int(landmark.x * width)
         y = int(landmark.y * height)
-        cv2.circle(frame, (x, y), 5, (0, 255, 0), -1)  #turns into green 
-    return frame
-
-def draw_skeleton_lines(frame, landmarks, connections):
-    height, width, _ = frame.shape
-    for start_idx, end_idx in connections:
-        
-        if start_idx < len(landmarks) and end_idx < len(landmarks):
-            start = landmarks[start_idx]
-            end = landmarks[end_idx]
-            start_point = (int(start.x * width), int(start.y * height))
-            end_point = (int(end.x * width), int(end.y * height))
-            cv2.line(frame, start_point, end_point, (255, 255, 255), 2)   # white line
+        cv2.circle(frame, (x, y), 5, (0, 255, 0), -1)  # green dot
     return frame
 
 
+def process_video(video_path, json_path="joint_angles.json", output_video_path="skeleton_output.mp4"):
+    download_model()
+    cap = load_video(video_path)
+    fps = cap.get(cv2.CAP_PROP_FPS) or 30  # some files don't report their speed; 30 is a safe guess
 
-cap = load_video("Jumping.MOV")   # can be changed with different files
+    all_frames_data = {}
+    out = None
+    frame_number = 0
 
-# Get the video's own width, height, and speed, so our output video matches it
-width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-fps    = cap.get(cv2.CAP_PROP_FPS)
+    with create_landmarker() as landmarker:
+        while True:
+            success, frame = cap.read()
+            if not success:
+                break
 
-# Set up a writer that will save our drawn-on frames into a new video file
-fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-out = cv2.VideoWriter("skeleton_output.mp4", fourcc, fps, (width, height))
+            height, width, _ = frame.shape
+            if out is None:
+                # Size the output video from a real frame so it always matches (phone videos can be rotated)
+                fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+                out = cv2.VideoWriter(output_video_path, fourcc, fps, (width, height))
 
-while True:
-    success, frame = cap.read()
-    if not success:
-        break   
+            timestamp_ms = int(frame_number * 1000 / fps)  # VIDEO mode needs to know when each frame happens
+            landmarks = extract_joints(landmarker, frame, timestamp_ms)
 
-    landmarks = extract_joints(frame)
+            if landmarks:   # only save and draw if a person was actually detected in this frame
+                joints = landmarks_to_dict(landmarks)
+                add_angles(joints, width, height)
+                all_frames_data[f"frame_{frame_number:03d}"] = joints
 
-    if landmarks:   # only draw if a person was actually detected in this frame
-        frame = draw_skeleton_dots(frame, landmarks)
-        frame = draw_skeleton_lines(frame, landmarks, POSE_CONNECTIONS)
+                frame = draw_skeleton_lines(frame, landmarks, POSE_CONNECTIONS)
+                frame = draw_skeleton_dots(frame, landmarks)   # dots last so the lines don't cover them
 
-    out.write(frame)   # save this frame into the output video
+            out.write(frame)   # save this frame into the output video
+            frame_number += 1
 
-cap.release()
-out.release()
-print("Done! Check colab for output")
+    cap.release()
+    if out is not None:
+        out.release()
+
+    print("Processed", frame_number, "frames,", len(all_frames_data), "with a swimmer detected")
+    save_to_json(all_frames_data, json_path)
+    print("Saved skeleton video to", output_video_path)
+    return all_frames_data
+
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("Usage: python pose_extractor.py <video file>")
+        sys.exit(1)
+    process_video(sys.argv[1])

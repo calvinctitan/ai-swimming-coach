@@ -1,0 +1,9 @@
+# Secret API keys (Phase 3: Gemini key goes in .env)
+.env
+
+# MediaPipe model, downloaded automatically by pose_extractor.py
+*.task
+
+# Python and Colab clutter
+__pycache__/
+.ipynb_checkpoints/
