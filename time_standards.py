@@ -9,7 +9,7 @@ Original file is located at
 
 time_standards = {
     "10&under":{
-          "Boys":{
+          "Girls":{
             "100 SCY Free":{
                 "AAAA":61.79,
                 "AAA":64.99,
@@ -19,7 +19,7 @@ time_standards = {
                 "B":90.79,
             }
         },
-         "girls":{
+         "Boys":{
              "100 SCY Free":{
                  "AAAA":60.69,
                  "AAA":63.79,
