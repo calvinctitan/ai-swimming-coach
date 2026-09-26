@@ -17,26 +17,10 @@ https://www.loom.com/share/acb502c9f455495eb6fa97f4ecbdd095
 
 ## How to run
 
-1. Install the libraries:
-   ```
-   pip install -r requirements.txt
-   ```
-2. Run the pose extractor on a swimming video:
-   ```
-   python pose_extractor.py my_swim_video.mp4
-   ```
-   The first run downloads MediaPipe's pose model automatically.
+1. Install the libraries: `pip install -r requirements.txt`
+2. Download the MediaPipe pose model into this folder: https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/latest/pose_landmarker_full.task
+3. Put your video in this folder, set `video_file` in `pose_extractor.py` to its name, then run `python pose_extractor.py`
 
-In Google Colab, put a `!` in front of each command, e.g. `!python pose_extractor.py my_swim_video.mp4`.
+In Google Colab, put a `!` in front of each command.
 
-It creates:
-- `joint_angles.json` — joint positions and elbow/knee angles for every frame where a swimmer is found
-- `skeleton_output.mp4` — the video with the skeleton drawn on top
-
-## Project files
-
-| File | What it does |
-| --- | --- |
-| `pose_extractor.py` | Finds the 33 body joints on every frame, calculates joint angles, and draws the skeleton |
-| `time_standards.py` | USA Swimming 100 free time standards for each age group |
-| `research/measurement_definitions.md` | How each metric is measured, so it can be compared with research papers |
+It saves `joint_angles.json` (joint positions in pixels and elbow/knee angles) and `skeleton_output.mp4` (the video with the skeleton drawn on it).
