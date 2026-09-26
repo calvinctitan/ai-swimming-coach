@@ -9,9 +9,9 @@ https://www.loom.com/share/acb502c9f455495eb6fa97f4ecbdd095
 
 **Built with:** MediaPipe · OpenCV · Google Gemini AI · Python · Streamlit
 
-**Status:** Phase 1 — Building the Computer Vision Pipeline
+**Status:** Phase 2 — The Biomechanics Brain
 
-**Current task:** Learning basics: Building a Pose extractor
+**Current task:** Researching elite swimming biomechanics (step 2.1)
 
 **Started:** July 2026
 
