@@ -10,5 +10,10 @@ This page will show how my code measures each metric, whcih is important so the 
 -Converting from papers that use flexion(bending a joint) (straight = 0°): flexion = 180 - my angle
 -Camera: Side view, better if underwater
 
-## Body roll, hand entry, stroke rate, kick pattern
+
+## 2, Stroke Rates
+- Stroke rate = full arm movement rotation per minute with both hands. One rotation = right arm + left arm.
+- Cycle per minute = 60*fps /frames per cycle.  After, Average over several rotations
+
+## Body roll, hand entry,  kick pattern
 Not defined yet.
