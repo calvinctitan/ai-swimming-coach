@@ -207,3 +207,5 @@ while True:
 cap.release()
 out.release()
 print("Done! Check colab for output")
+
+#Fixed bugs with claude
