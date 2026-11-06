@@ -21,7 +21,12 @@ This page will show how my code measures each metric, which is important so the 
 - Units note: some papers report stroke frequency in Hz (cycles per second), so Hz × 60 = cycles per minute. Also check whether a paper counts one arm or both arms as one stroke (single-arm counts would double the number).
 - Pace: stroke rate changes a lot with pace (sprint vs. distance), so always record the pace next to the number.
 - Test: 45 frames per cycle at 30 fps gives 40 cycles per minute. Test program:https://colab.research.google.com/drive/1RgusBphoAbx0oTZMmGaDVgAGTK9i_uyN
-  
 
-## Body roll, hand entry,  kick pattern
+
+## 3, Kick Pattern
+-Kick Pattern: Number of kicks done per stroke cycle (Full arm rotation for both hands).             -One Kick = one downward kick by either leg. Count both legs together                                 -Landmarks: Ankles( 27 = left.  28 = right). Y value becomes greaters as the leg goes down. Count the lowest point(Greatest y value), following by a rise. That is one kick                            -Math: Count the total amount of times both feet reaches its lowest point(bigger y value) between one cycle.                                                                                           -Camera: Side view only.     
+-Units: Kicks/cycle.     
+-Common patters: 2, 4 , or 6 kicks/cycle.  
+
+## Body roll, hand entry
 Not defined yet.
