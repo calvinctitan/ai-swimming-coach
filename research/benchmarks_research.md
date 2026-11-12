@@ -1,5 +1,7 @@
 # Benchmarks research
 
+## Freestyle
+
 ## Elbow catch angle
 Convention: inside angle, straight arm = 180 degrees (same as my code).
 
